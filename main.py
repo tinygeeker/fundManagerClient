@@ -178,7 +178,7 @@ class FundManagerApp(QMainWindow):
         # 创建打赏对话框
         donate_dialog = QDialog(self)
         donate_dialog.setWindowTitle('打赏')
-        donate_dialog.resize(700, 550)
+        donate_dialog.resize(700, 450)
         
         layout = QVBoxLayout(donate_dialog)
         # 移除布局边距
@@ -195,14 +195,14 @@ class FundManagerApp(QMainWindow):
             pixmap = QPixmap(donate_image_path)
             if not pixmap.isNull():
                 # 调整图片大小以适应对话框
-                scaled_pixmap = pixmap.scaled(680, 530, Qt.KeepAspectRatio)
+                scaled_pixmap = pixmap.scaled(680, 430, Qt.KeepAspectRatio)
                 image_label.setPixmap(scaled_pixmap)
             else:
                 image_label.setText('图片加载失败')
-                image_label.setStyleSheet('QLabel { border: 1px solid #ccc; padding: 150px; font-size: 16px; }')
+                image_label.setStyleSheet('QLabel { border: 1px solid #ccc; padding: 100px; font-size: 16px; }')
         else:
             image_label.setText('打赏图片不存在')
-            image_label.setStyleSheet('QLabel { border: 1px solid #ccc; padding: 150px; font-size: 16px; }')
+            image_label.setStyleSheet('QLabel { border: 1px solid #ccc; padding: 100px; font-size: 16px; }')
         
         layout.addWidget(image_label)
         

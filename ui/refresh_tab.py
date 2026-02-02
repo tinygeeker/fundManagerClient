@@ -206,6 +206,11 @@ class RefreshTab(QWidget):
             QMessageBox.warning(self, '提示', '请输入组合名称')
             return
         
+        # 检查组合名称长度
+        if len(portfolio_name) > 20:
+            QMessageBox.warning(self, '提示', '组合名称最多20个字符，请缩短名称')
+            return
+        
         # 检查组合名称是否已存在
         db = FundDB()
         portfolios = db.get_portfolios()

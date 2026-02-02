@@ -104,6 +104,8 @@ class MarketTab(QWidget):
         # 市场情绪
         sentiment_group = QGroupBox('市场情绪')
         sentiment_layout = QVBoxLayout(sentiment_group)
+        # 设置垂直方向的对齐方式为顶部
+        sentiment_layout.setAlignment(Qt.AlignTop)
         self.sentiment_label = QLabel('情绪指数: --')
         self.sentiment_desc_label = QLabel('市场情绪: --')
         self.main_fund_label = QLabel('主力资金: --')
@@ -115,12 +117,16 @@ class MarketTab(QWidget):
         # 涨跌分布
         distribution_group = QGroupBox('涨跌分布')
         distribution_layout = QVBoxLayout(distribution_group)
+        # 设置垂直方向的对齐方式为顶部
+        distribution_layout.setAlignment(Qt.AlignTop)
         self.up_stocks_label = QLabel('上涨: --')
         self.down_stocks_label = QLabel('下跌: --')
         self.flat_stocks_label = QLabel('平盘: --')
+        self.up_down_ratio_label = QLabel('涨跌比: --')
         distribution_layout.addWidget(self.up_stocks_label)
         distribution_layout.addWidget(self.down_stocks_label)
         distribution_layout.addWidget(self.flat_stocks_label)
+        distribution_layout.addWidget(self.up_down_ratio_label)
         market_status_layout.addWidget(distribution_group)
         
         main_splitter.addWidget(market_status_group)
@@ -154,9 +160,12 @@ class MarketTab(QWidget):
             # 隐藏垂直表头（行号）
             table.verticalHeader().setVisible(False)
             # 设置列宽
-            table.setColumnWidth(0, 50)  # 序号列宽度
-            table.setColumnWidth(2, 100)  # 基金代码列宽度
+            table.setColumnWidth(0, 30)  # 序号列宽度
+            table.setColumnWidth(2, 60)  # 基金代码列宽度
             table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)  # 基金名称列自动拉伸
+            # 启用上下文菜单
+            table.setContextMenuPolicy(Qt.CustomContextMenu)
+            table.customContextMenuRequested.connect(lambda pos, t=table: self.show_rank_context_menu(pos, t))
             table.setMaximumHeight(300)  # 设置最大高度
             self.rank_tables[category] = table
             
@@ -214,6 +223,15 @@ class MarketTab(QWidget):
         self.down_stocks_label.setText(f"下跌: {down_stocks}")
         self.flat_stocks_label.setText(f"平盘: {flat_stocks}")
         
+        # 更新涨跌比
+        if down_stocks > 0:
+            ratio = f"{up_stocks}:{down_stocks}"
+            # 创建富文本标签，上涨用红色，下跌用绿色
+            self.up_down_ratio_label.setText(f"涨跌比: <font color='red'>{up_stocks}</font>:<font color='green'>{down_stocks}</font>")
+            self.up_down_ratio_label.setTextFormat(1)  # 设置为富文本格式
+        else:
+            self.up_down_ratio_label.setText("涨跌比: --")
+        
         # 更新热搜榜
         hot_funds = market_sentiment.get('hot_funds', [])
         # 如果没有热搜基金数据，使用默认数据
@@ -223,7 +241,9 @@ class MarketTab(QWidget):
                 {'code': '110022', 'name': '易方达消费行业股票', 'reason': '消费升级概念', 'heat': '95'},
                 {'code': '001475', 'name': '易方达国防军工混合', 'reason': '军工板块异动', 'heat': '90'},
                 {'code': '000689', 'name': '前海开源新经济混合', 'reason': '新能源题材', 'heat': '85'},
-                {'code': '001593', 'name': '天弘中证计算机ETF联接', 'reason': '计算机板块走强', 'heat': '80'}
+                {'code': '001593', 'name': '天弘中证计算机ETF联接', 'reason': '计算机板块走强', 'heat': '80'},
+                {'code': '000008', 'name': '华夏全球精选', 'reason': '全球市场走强', 'heat': '75'},
+                {'code': '000006', 'name': '华夏优势增长', 'reason': '优势行业表现', 'heat': '70'}
             ]
         
         # 填充热搜榜表格
@@ -263,3 +283,52 @@ class MarketTab(QWidget):
                     # 基金代码
                     code_item = QTableWidgetItem(fund.get('code', ''))
                     table.setItem(row, 2, code_item)
+    
+    def show_rank_context_menu(self, position, table):
+        """显示排行榜上下文菜单"""
+        # 获取当前选中的项
+        selected_items = table.selectedItems()
+        if not selected_items:
+            return
+        
+        # 获取选中行
+        row = selected_items[0].row()
+        
+        # 获取基金代码和名称
+        fund_code = table.item(row, 2).text()
+        fund_name = table.item(row, 1).text()
+        
+        # 创建上下文菜单
+        from PyQt5.QtWidgets import QMenu
+        menu = QMenu()
+        
+        # 添加加入自选动作
+        add_to_favorite_action = menu.addAction('加入自选')
+        add_to_favorite_action.triggered.connect(lambda: self.add_fund_to_favorite(fund_code, fund_name))
+        
+        # 显示菜单
+        menu.exec_(table.mapToGlobal(position))
+    
+    def add_fund_to_favorite(self, fund_code, fund_name):
+        """添加基金到自选"""
+        from database.db_manager import FundDB
+        from api.fund_api import FundAPI
+        
+        # 验证基金代码是否有效
+        api = FundAPI()
+        fund_info = api.get_fund_info(fund_code)
+        if not fund_info:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.error(self, '错误', f'基金 {fund_name} 不存在')
+            return
+        
+        # 添加到数据库
+        db = FundDB()
+        success = db.add_favorite_fund(fund_code, fund_info['name'], fund_info['type'])
+        db.close()
+        
+        from PyQt5.QtWidgets import QMessageBox
+        if success:
+            QMessageBox.information(self, '成功', f'基金 {fund_info["name"]} 已添加到自选')
+        else:
+            QMessageBox.warning(self, '提示', f'基金 {fund_info["name"]} 已在自选列表中')
