@@ -63,18 +63,7 @@ python main.py
 - 在「行情」标签页中，查看各类指数和基金排行榜
 - 点击「刷新数据」按钮获取最新行情
 
-## 🎨 界面预览
-
-### 刷新模块
-![刷新模块](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=fund%20manager%20refresh%20tab%20interface%20with%20portfolio%20management%20and%20fund%20list&image_size=landscape_16_9)
-
-### 自选模块
-![自选模块](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=fund%20manager%20favorite%20tab%20interface%20with%20search%20function%20and%20fund%20list&image_size=landscape_16_9)
-
-### 行情模块
-![行情模块](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=fund%20manager%20market%20tab%20interface%20with%20stock%20indices%20and%20rankings&image_size=landscape_16_9)
-
-## 项目贡献
+## 🎨 项目贡献
 
 如果你觉得项目有用，就请我喝杯奶茶吧。 :tropical_drink:
 

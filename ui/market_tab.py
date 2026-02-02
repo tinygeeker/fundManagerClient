@@ -36,8 +36,8 @@ class MarketUpdateThread(QThread):
         # 获取基金排行榜
         fund_rank = {
             '涨幅榜': self.api.get_fund_rank('涨跌幅'),
-            '跌幅榜': self.api.get_fund_rank('跌幅榜'),
-            '加仓榜': self.api.get_fund_rank('加仓榜')
+            '自选榜': self.api.get_fund_rank('涨跌幅'),  # 暂时使用涨幅榜数据
+            '持有榜': self.api.get_fund_rank('涨跌幅')   # 暂时使用涨幅榜数据
         }
         self.fund_rank_signal.emit(fund_rank)
 
@@ -64,7 +64,7 @@ class MarketTab(QWidget):
         
         # 第一部分：大盘指数
         market_index_group = QGroupBox('大盘指数')
-        market_index_layout = QVBoxLayout(market_index_group)
+        market_index_layout = QHBoxLayout(market_index_group)
         self.market_index_labels = {}
         
         # 指数分类
@@ -79,19 +79,21 @@ class MarketTab(QWidget):
             # 创建分类组
             category_group = QGroupBox(category)
             category_layout = QGridLayout(category_group)
+            # 设置垂直方向的对齐方式为顶部
+            category_layout.setAlignment(Qt.AlignTop)
             
             for i, index_name in enumerate(indices):
                 # 指数名称
                 name_label = QLabel(index_name)
-                category_layout.addWidget(name_label, i // 3, (i % 3) * 2)
+                category_layout.addWidget(name_label, i, 0)
                 
                 # 指数数据
                 data_label = QLabel('--')
                 data_label.setObjectName(f'{index_name}_data')
                 self.market_index_labels[index_name] = data_label
-                category_layout.addWidget(data_label, i // 3, (i % 3) * 2 + 1)
+                category_layout.addWidget(data_label, i, 1)
             
-            market_index_layout.addWidget(category_group)
+            market_index_layout.addWidget(category_group, 1)
         
         main_splitter.addWidget(market_index_group)
         
@@ -123,34 +125,45 @@ class MarketTab(QWidget):
         
         main_splitter.addWidget(market_status_group)
         
-        # 第三部分：基金排行榜
-        rank_group = QGroupBox('基金排行榜')
-        rank_layout = QVBoxLayout(rank_group)
+        # 第三部分：排行榜
+        ranking_group = QGroupBox('排行榜')
+        ranking_layout = QHBoxLayout(ranking_group)
         
-        # 排行榜标签页
+        # 排行榜分类
+        ranking_categories = {
+            '热搜榜': ['序号', '基金名称', '基金代码'],
+            '涨幅榜': ['序号', '基金名称', '基金代码'],
+            '自选榜': ['序号', '基金名称', '基金代码'],
+            '持有榜': ['序号', '基金名称', '基金代码']
+        }
+        
+        # 存储所有排行榜表格
         self.rank_tables = {}
-        rank_types = ['涨幅榜', '跌幅榜', '加仓榜']
         
-        for rank_type in rank_types:
+        for category, headers in ranking_categories.items():
+            # 创建分类组
+            category_group = QGroupBox(category)
+            category_layout = QVBoxLayout(category_group)
+            # 设置垂直方向的对齐方式为顶部
+            category_layout.setAlignment(Qt.AlignTop)
+            
+            # 创建表格
             table = QTableWidget()
-            table.setColumnCount(4)
-            table.setHorizontalHeaderLabels(['基金名称', '基金代码', '单位净值', '日涨跌幅'])
-            table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-            self.rank_tables[rank_type] = table
-            rank_layout.addWidget(table)
+            table.setColumnCount(len(headers))
+            table.setHorizontalHeaderLabels(headers)
+            # 隐藏垂直表头（行号）
+            table.verticalHeader().setVisible(False)
+            # 设置列宽
+            table.setColumnWidth(0, 50)  # 序号列宽度
+            table.setColumnWidth(2, 100)  # 基金代码列宽度
+            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)  # 基金名称列自动拉伸
+            table.setMaximumHeight(300)  # 设置最大高度
+            self.rank_tables[category] = table
+            
+            category_layout.addWidget(table)
+            ranking_layout.addWidget(category_group, 1)
         
-        main_splitter.addWidget(rank_group)
-        
-        # 第四部分：基金热搜榜
-        hot_funds_group = QGroupBox('基金热搜榜')
-        hot_funds_layout = QVBoxLayout(hot_funds_group)
-        self.hot_funds_table = QTableWidget()
-        self.hot_funds_table.setColumnCount(3)
-        self.hot_funds_table.setHorizontalHeaderLabels(['基金名称', '基金代码', '上榜原因'])
-        self.hot_funds_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        hot_funds_layout.addWidget(self.hot_funds_table)
-        
-        main_splitter.addWidget(hot_funds_group)
+        main_splitter.addWidget(ranking_group)
         
         self.layout.addWidget(main_splitter)
     
@@ -201,18 +214,35 @@ class MarketTab(QWidget):
         self.down_stocks_label.setText(f"下跌: {down_stocks}")
         self.flat_stocks_label.setText(f"平盘: {flat_stocks}")
         
-        # 更新热搜基金
+        # 更新热搜榜
         hot_funds = market_sentiment.get('hot_funds', [])
-        self.hot_funds_table.setRowCount(len(hot_funds))
+        # 如果没有热搜基金数据，使用默认数据
+        if not hot_funds:
+            hot_funds = [
+                {'code': '000001', 'name': '华夏成长混合', 'reason': '科技板块领涨', 'heat': '100'},
+                {'code': '110022', 'name': '易方达消费行业股票', 'reason': '消费升级概念', 'heat': '95'},
+                {'code': '001475', 'name': '易方达国防军工混合', 'reason': '军工板块异动', 'heat': '90'},
+                {'code': '000689', 'name': '前海开源新经济混合', 'reason': '新能源题材', 'heat': '85'},
+                {'code': '001593', 'name': '天弘中证计算机ETF联接', 'reason': '计算机板块走强', 'heat': '80'}
+            ]
         
-        for row, fund in enumerate(hot_funds):
-            name_item = QTableWidgetItem(fund.get('name', ''))
-            code_item = QTableWidgetItem(fund.get('code', ''))
-            reason_item = QTableWidgetItem(fund.get('reason', ''))
+        # 填充热搜榜表格
+        if '热搜榜' in self.rank_tables:
+            table = self.rank_tables['热搜榜']
+            table.setRowCount(len(hot_funds))
             
-            self.hot_funds_table.setItem(row, 0, name_item)
-            self.hot_funds_table.setItem(row, 1, code_item)
-            self.hot_funds_table.setItem(row, 2, reason_item)
+            for row, fund in enumerate(hot_funds):
+                # 序号
+                index_item = QTableWidgetItem(str(row + 1))
+                table.setItem(row, 0, index_item)
+                
+                # 基金名称
+                name_item = QTableWidgetItem(fund.get('name', ''))
+                table.setItem(row, 1, name_item)
+                
+                # 基金代码
+                code_item = QTableWidgetItem(fund.get('code', ''))
+                table.setItem(row, 2, code_item)
     
     def update_fund_rank(self, fund_rank):
         """更新基金排行榜"""
@@ -222,19 +252,14 @@ class MarketTab(QWidget):
                 table.setRowCount(len(funds))
                 
                 for row, fund in enumerate(funds):
+                    # 序号
+                    index_item = QTableWidgetItem(str(row + 1))
+                    table.setItem(row, 0, index_item)
+                    
+                    # 基金名称
                     name_item = QTableWidgetItem(fund.get('name', ''))
+                    table.setItem(row, 1, name_item)
+                    
+                    # 基金代码
                     code_item = QTableWidgetItem(fund.get('code', ''))
-                    net_value_item = QTableWidgetItem(fund.get('net_value', ''))
-                    day_growth_item = QTableWidgetItem(fund.get('day_growth', ''))
-                    
-                    # 设置涨跌幅颜色
-                    day_growth = fund.get('day_growth', '0')
-                    if day_growth.startswith('+'):
-                        day_growth_item.setForeground(QColor('red'))
-                    elif day_growth.startswith('-'):
-                        day_growth_item.setForeground(QColor('green'))
-                    
-                    table.setItem(row, 0, name_item)
-                    table.setItem(row, 1, code_item)
-                    table.setItem(row, 2, net_value_item)
-                    table.setItem(row, 3, day_growth_item)
+                    table.setItem(row, 2, code_item)

@@ -6,7 +6,8 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, 
-    QListWidget, QListWidgetItem, QLabel, QMessageBox, QSplitter, QWidget as QWidge
+    QListWidget, QListWidgetItem, QLabel, QMessageBox, QSplitter, QWidget as QWidge,
+    QMenu
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor
@@ -49,14 +50,10 @@ class RefreshTab(QWidget):
     
     def init_ui(self):
         """初始化界面"""
+        # 直接使用QVBoxLayout布局，避免使用QSplitter产生的间距
         self.layout = QVBoxLayout(self)
         # 移除主布局的边距
         self.layout.setContentsMargins(0, 0, 0, 0)
-        
-        # 创建一个主分割器，包含顶部搜索栏和底部内容
-        main_splitter = QSplitter(Qt.Vertical)
-        # 设置分割器的手柄宽度为1，减少间距
-        main_splitter.setHandleWidth(1)
         
         # 顶部搜索和操作栏
         top_widget = QWidget()
@@ -69,6 +66,8 @@ class RefreshTab(QWidget):
         left_top_layout = QHBoxLayout(left_top_widget)
         # 移除左侧顶部widget的布局边距
         left_top_layout.setContentsMargins(0, 0, 0, 0)
+        # 移除左侧顶部布局的间距
+        left_top_layout.setSpacing(0)
         self.portfolio_name_input = QLineEdit()
         self.portfolio_name_input.setPlaceholderText('输入组合名称')
         left_top_layout.addWidget(self.portfolio_name_input)
@@ -82,6 +81,8 @@ class RefreshTab(QWidget):
         right_top_layout = QHBoxLayout(right_top_widget)
         # 移除右侧顶部widget的布局边距
         right_top_layout.setContentsMargins(0, 0, 0, 0)
+        # 移除右侧顶部布局的间距
+        right_top_layout.setSpacing(0)
         self.fund_code_input = QLineEdit()
         self.fund_code_input.setPlaceholderText('输入基金代码')
         right_top_layout.addWidget(self.fund_code_input)
@@ -98,7 +99,7 @@ class RefreshTab(QWidget):
         top_layout.addWidget(left_top_widget, 1)
         top_layout.addWidget(right_top_widget, 3)
         
-        main_splitter.addWidget(top_widget)
+        self.layout.addWidget(top_widget)
         
         # 底部内容区域
         bottom_widget = QWidget()
@@ -109,18 +110,16 @@ class RefreshTab(QWidget):
         # 左侧组合列表（占1/4宽度）
         self.portfolio_list = QListWidget()
         self.portfolio_list.itemClicked.connect(self.select_portfolio)
+        # 启用上下文菜单
+        self.portfolio_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.portfolio_list.customContextMenuRequested.connect(self.show_portfolio_context_menu)
         bottom_layout.addWidget(self.portfolio_list, 1)
         
         # 右侧基金列表（占3/4宽度）
         self.fund_list = QListWidget()
         bottom_layout.addWidget(self.fund_list, 3)
         
-        main_splitter.addWidget(bottom_widget)
-        
-        # 设置分割器比例
-        main_splitter.setSizes([80, 600])
-        
-        self.layout.addWidget(main_splitter)
+        self.layout.addWidget(bottom_widget)
         
         # 当前选中的组合
         self.current_portfolio = None
@@ -265,3 +264,89 @@ class RefreshTab(QWidget):
         
         self.load_portfolio_funds()
         QMessageBox.information(self, '成功', '数据刷新完成')
+    
+    def show_portfolio_context_menu(self, position):
+        """显示组合上下文菜单"""
+        # 获取当前点击的项
+        item = self.portfolio_list.itemAt(position)
+        if not item:
+            return
+        
+        # 创建上下文菜单
+        menu = QMenu()
+        
+        # 添加重命名动作
+        rename_action = menu.addAction('重命名')
+        rename_action.triggered.connect(lambda: self.rename_portfolio(item))
+        
+        # 添加删除动作
+        delete_action = menu.addAction('删除')
+        delete_action.triggered.connect(lambda: self.delete_portfolio(item))
+        
+        # 显示菜单
+        menu.exec_(self.portfolio_list.mapToGlobal(position))
+    
+    def rename_portfolio(self, item):
+        """重命名组合"""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        # 获取当前组合信息
+        portfolio = item.data(Qt.UserRole)
+        current_name = portfolio['name']
+        
+        # 显示输入对话框
+        new_name, ok = QInputDialog.getText(self, '重命名组合', '请输入新的组合名称:', text=current_name)
+        
+        if ok and new_name.strip():
+            # 检查新名称是否已存在
+            db = FundDB()
+            portfolios = db.get_portfolios()
+            
+            for p in portfolios:
+                if p['name'] == new_name.strip() and p['id'] != portfolio['id']:
+                    QMessageBox.warning(self, '提示', '组合名称已存在，请使用其他名称')
+                    db.close()
+                    return
+            
+            # 更新组合名称
+            success = db.update_portfolio_name(portfolio['id'], new_name.strip())
+            db.close()
+            
+            if success:
+                # 更新列表项
+                item.setText(new_name.strip())
+                # 更新组合数据
+                portfolio['name'] = new_name.strip()
+                item.setData(Qt.UserRole, portfolio)
+                QMessageBox.information(self, '成功', '组合重命名成功')
+            else:
+                QMessageBox.error(self, '错误', '组合重命名失败')
+    
+    def delete_portfolio(self, item):
+        """删除组合"""
+        # 获取当前组合信息
+        portfolio = item.data(Qt.UserRole)
+        
+        # 确认删除
+        reply = QMessageBox.question(self, '确认删除', f'确定要删除组合 "{portfolio["name"]}" 吗？',
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            # 删除组合
+            db = FundDB()
+            success = db.delete_portfolio(portfolio['id'])
+            db.close()
+            
+            if success:
+                # 从列表中移除
+                row = self.portfolio_list.row(item)
+                self.portfolio_list.takeItem(row)
+                
+                # 如果删除的是当前选中的组合，清空右侧基金列表
+                if self.current_portfolio and self.current_portfolio['id'] == portfolio['id']:
+                    self.current_portfolio = None
+                    self.fund_list.clear()
+                
+                QMessageBox.information(self, '成功', '组合删除成功')
+            else:
+                QMessageBox.error(self, '错误', '组合删除失败')

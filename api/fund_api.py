@@ -84,46 +84,150 @@ class FundAPI:
         :return: 指数数据字典
         """
         try:
-            # 使用备用API
-            url = "http://api.money.126.net/data/feed"
-            indices = {
+            # 尝试使用东方财富API获取A股指数数据
+            url = "http://api.fund.eastmoney.com/f10/lsjz"
+            
+            # 构建指数数据结果
+            result = {}
+            
+            # 获取A股主要指数
+            a股_indices = {
                 '上证指数': '000001',
                 '深证成指': '399001',
-                '创业板指': '399006'
+                '创业板指': '399006',
+                '科创50': '000688',
+                '上证50': '000016',
+                '沪深300': '000300',
+                '中证500': '000905',
+                '中证1000': '000852'
             }
             
-            # 构建股票代码参数
-            stock_codes = ",".join([f"sh{code}" if code == '000001' else f"sz{code}" for code in indices.values()])
-            params = {
-                'list': stock_codes,
-                '_': int(time.time() * 1000)
-            }
+            # 尝试从多个API获取数据
+            # 1. 尝试使用新浪财经API
+            try:
+                from urllib.parse import quote
+                
+                # 构建新浪财经API请求
+                sina_url = "http://hq.sinajs.cn/list="
+                sina_codes = []
+                code_mapping = {}
+                
+                for name, code in a股_indices.items():
+                    if code.startswith('000'):
+                        sina_code = f"sh{code}"
+                    else:
+                        sina_code = f"sz{code}"
+                    sina_codes.append(sina_code)
+                    code_mapping[sina_code] = name
+                
+                sina_url += ",".join(sina_codes)
+                response = requests.get(sina_url, headers=self.headers, timeout=5)
+                response.encoding = 'gb2312'
+                
+                # 解析新浪财经返回的数据
+                lines = response.text.strip().split('\n')
+                for line in lines:
+                    if line:
+                        parts = line.split('=')
+                        if len(parts) == 2:
+                            code = parts[0].split('_')[1]
+                            data_str = parts[1].strip('"')
+                            data = data_str.split(',')
+                            
+                            if code in code_mapping and len(data) >= 4:
+                                name = code_mapping[code]
+                                # 新浪财经数据格式：[开盘价, 昨日收盘价, 当前价, 最高价, 最低价, ...]
+                                try:
+                                    open_price = float(data[0])
+                                    prev_close = float(data[1])
+                                    current_price = float(data[2])
+                                    high_price = float(data[3])
+                                    low_price = float(data[4])
+                                    
+                                    change = current_price - prev_close
+                                    change_percent = (change / prev_close) * 100
+                                    
+                                    result[name] = {
+                                        'code': a股_indices[name],
+                                        'price': current_price,
+                                        'change': change,
+                                        'change_percent': change_percent,
+                                        'open': open_price,
+                                        'high': high_price,
+                                        'low': low_price,
+                                        'volume': 0  # 新浪API可能没有成交量数据
+                                    }
+                                except (ValueError, IndexError):
+                                    pass
+            except Exception as e:
+                print(f"新浪财经API获取失败: {e}")
             
-            response = requests.get(url, headers=self.headers, params=params, timeout=5)
-            # 处理返回数据
-            data_str = response.text
-            # 移除开头的 var hqData = 和结尾的 ;
-            data_str = data_str.replace('var hqData = ', '').replace(';', '')
-            data = json.loads(data_str)
+            # 2. 如果新浪API失败，尝试使用腾讯财经API
+            if not result:
+                try:
+                    tencent_url = "http://qt.gtimg.cn/q="
+                    tencent_codes = []
+                    code_mapping = {}
+                    
+                    for name, code in a股_indices.items():
+                        if code.startswith('000'):
+                            tencent_code = f"sh{code}"
+                        else:
+                            tencent_code = f"sz{code}"
+                        tencent_codes.append(tencent_code)
+                        code_mapping[tencent_code] = name
+                    
+                    tencent_url += ",".join(tencent_codes)
+                    response = requests.get(tencent_url, headers=self.headers, timeout=5)
+                    response.encoding = 'gb2312'
+                    
+                    # 解析腾讯财经返回的数据
+                    lines = response.text.strip().split('\n')
+                    for line in lines:
+                        if line:
+                            parts = line.split('~')
+                            if len(parts) >= 3:
+                                code = parts[0].split('_')[1]
+                                if code in code_mapping:
+                                    name = code_mapping[code]
+                                    try:
+                                        current_price = float(parts[3])
+                                        prev_close = float(parts[4])
+                                        open_price = float(parts[5])
+                                        high_price = float(parts[33])
+                                        low_price = float(parts[34])
+                                        
+                                        change = current_price - prev_close
+                                        change_percent = (change / prev_close) * 100
+                                        
+                                        result[name] = {
+                                            'code': a股_indices[name],
+                                            'price': current_price,
+                                            'change': change,
+                                            'change_percent': change_percent,
+                                            'open': open_price,
+                                            'high': high_price,
+                                            'low': low_price,
+                                            'volume': 0  # 腾讯API可能没有成交量数据
+                                        }
+                                    except (ValueError, IndexError):
+                                        pass
+                except Exception as e:
+                    print(f"腾讯财经API获取失败: {e}")
             
-            result = {}
-            for name, code in indices.items():
-                stock_key = f"sh{code}" if code == '000001' else f"sz{code}"
-                if stock_key in data:
-                    stock_data = data[stock_key]
-                    result[name] = {
-                        'code': code,
-                        'price': stock_data[2],  # 当前价格
-                        'change': stock_data[3],  # 涨跌额
-                        'change_percent': stock_data[4],  # 涨跌幅
-                        'open': stock_data[1],  # 开盘价
-                        'high': stock_data[5],  # 最高价
-                        'low': stock_data[6],  # 最低价
-                        'volume': stock_data[9]  # 成交量
-                    }
-            
-            # 添加其他指数的模拟数据
+            # 添加其他指数（港股、美股、亚太）
+            # 这些可能需要其他API，但我们暂时使用模拟数据
             result.update({
+                '北证50': {
+                    'code': '899050',
+                    'price': 1200.00,
+                    'change': 8.00,
+                    'change_percent': 0.67,
+                    'open': 1192.00,
+                    'high': 1205.00,
+                    'low': 1188.00,
+                    'volume': 3000000000
+                },
                 '恒生指数': {
                     'code': 'hkHSI',
                     'price': 25000.00,
@@ -133,6 +237,46 @@ class FundAPI:
                     'high': 25100.00,
                     'low': 24800.00,
                     'volume': 8000000000
+                },
+                '恒生科技': {
+                    'code': 'hkHSTECH',
+                    'price': 5800.00,
+                    'change': 80.00,
+                    'change_percent': 1.40,
+                    'open': 5720.00,
+                    'high': 5820.00,
+                    'low': 5700.00,
+                    'volume': 4000000000
+                },
+                '恒生国企': {
+                    'code': 'hkHSCEI',
+                    'price': 8600.00,
+                    'change': 60.00,
+                    'change_percent': 0.70,
+                    'open': 8540.00,
+                    'high': 8620.00,
+                    'low': 8530.00,
+                    'volume': 3500000000
+                },
+                '纳斯达克': {
+                    'code': 'usIXIC',
+                    'price': 15000.00,
+                    'change': 100.00,
+                    'change_percent': 0.67,
+                    'open': 14900.00,
+                    'high': 15100.00,
+                    'low': 14850.00,
+                    'volume': 4000000000
+                },
+                '标普500': {
+                    'code': 'usSPX',
+                    'price': 4700.00,
+                    'change': 30.00,
+                    'change_percent': 0.64,
+                    'open': 4670.00,
+                    'high': 4710.00,
+                    'low': 4660.00,
+                    'volume': 3500000000
                 },
                 '道琼斯': {
                     'code': 'usDJI',
@@ -144,19 +288,45 @@ class FundAPI:
                     'low': 35750.00,
                     'volume': 3000000000
                 },
-                '纳斯达克': {
-                    'code': 'usIXIC',
-                    'price': 15000.00,
-                    'change': 100.00,
-                    'change_percent': 0.67,
-                    'open': 14900.00,
-                    'high': 15100.00,
-                    'low': 14850.00,
-                    'volume': 4000000000
+                '日经225': {
+                    'code': 'jpN225',
+                    'price': 33500.00,
+                    'change': 350.00,
+                    'change_percent': 1.05,
+                    'open': 33150.00,
+                    'high': 33600.00,
+                    'low': 33100.00,
+                    'volume': 5000000000
+                },
+                '印度孟买sensex': {
+                    'code': 'inSENSEX',
+                    'price': 73500.00,
+                    'change': 800.00,
+                    'change_percent': 1.10,
+                    'open': 72700.00,
+                    'high': 73600.00,
+                    'low': 72600.00,
+                    'volume': 2500000000
+                },
+                '越南胡志明': {
+                    'code': 'vnHOSE',
+                    'price': 1500.00,
+                    'change': 20.00,
+                    'change_percent': 1.35,
+                    'open': 1480.00,
+                    'high': 1510.00,
+                    'low': 1475.00,
+                    'volume': 1000000000
                 }
             })
             
-            return result
+            # 如果成功获取到部分数据，返回结果
+            if result:
+                return result
+            else:
+                # 如果所有API都失败，返回模拟数据
+                raise Exception("所有API都失败")
+                
         except Exception as e:
             print(f"获取大盘指数失败: {e}")
             # 返回模拟数据

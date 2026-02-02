@@ -235,6 +235,33 @@ class FundDB:
         except Exception as e:
             print(f"获取基金组合失败: {e}")
             return []
+    
+    def update_portfolio_name(self, portfolio_id, new_name):
+        """
+        更新组合名称
+        :param portfolio_id: 组合ID
+        :param new_name: 新组合名称
+        :return: 是否更新成功
+        """
+        try:
+            self.cursor.execute(
+                "UPDATE fund_portfolios SET portfolio_name = ? WHERE id = ?",
+                (new_name, portfolio_id)
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"更新组合名称失败: {e}")
+            self.conn.rollback()
+            return False
+    
+    def delete_portfolio(self, portfolio_id):
+        """
+        删除组合（与remove_portfolio方法相同，作为别名）
+        :param portfolio_id: 组合ID
+        :return: 是否删除成功
+        """
+        return self.remove_portfolio(portfolio_id)
 
 # 初始化数据库
 def init_db():

@@ -220,7 +220,7 @@ class FavoriteTab(QWidget):
             QMessageBox.warning(self, '提示', '请输入搜索内容')
             return
         
-        # 模拟搜索结果，实际项目中应该调用真实的搜索API
+        # 使用真实API数据进行搜索
         from api.fund_api import FundAPI
         api = FundAPI()
         
@@ -231,7 +231,29 @@ class FavoriteTab(QWidget):
         search_results = []
         for fund in fund_rank:
             if search_text in fund['code'] or search_text in fund['name']:
+                # 获取真实的基金类型
+                fund_info = api.get_fund_info(fund['code'])
+                if fund_info:
+                    fund['type'] = fund_info['type']
+                else:
+                    fund['type'] = '未知类型'
                 search_results.append(fund)
+        
+        # 如果没有匹配结果，尝试直接通过基金代码获取
+        if not search_results:
+            # 尝试直接获取基金信息
+            fund_info = api.get_fund_info(search_text)
+            if fund_info:
+                # 获取基金净值
+                fund_net_value = api.get_fund_net_value(search_text)
+                if fund_net_value:
+                    search_results.append({
+                        'code': search_text,
+                        'name': fund_info['name'],
+                        'type': fund_info['type'],
+                        'net_value': fund_net_value['net_value'],
+                        'day_growth': fund_net_value['day_growth']
+                    })
         
         # 显示搜索结果
         self.search_result_table.setRowCount(len(search_results))
@@ -242,15 +264,15 @@ class FavoriteTab(QWidget):
             self.search_result_table.setItem(row, 0, checkbox_item)
             
             # 基金名称
-            name_item = QTableWidgetItem(fund['name'])
+            name_item = QTableWidgetItem(fund.get('name', ''))
             self.search_result_table.setItem(row, 1, name_item)
             
             # 基金代码
-            code_item = QTableWidgetItem(fund['code'])
+            code_item = QTableWidgetItem(fund.get('code', ''))
             self.search_result_table.setItem(row, 2, code_item)
             
-            # 基金类型（模拟）
-            type_item = QTableWidgetItem('混合型')
+            # 基金类型（真实数据）
+            type_item = QTableWidgetItem(fund.get('type', '未知类型'))
             self.search_result_table.setItem(row, 3, type_item)
     
     def refresh_data(self):
