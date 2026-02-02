@@ -242,8 +242,7 @@ class MarketTab(QWidget):
                 {'code': '001475', 'name': '易方达国防军工混合', 'reason': '军工板块异动', 'heat': '90'},
                 {'code': '000689', 'name': '前海开源新经济混合', 'reason': '新能源题材', 'heat': '85'},
                 {'code': '001593', 'name': '天弘中证计算机ETF联接', 'reason': '计算机板块走强', 'heat': '80'},
-                {'code': '000008', 'name': '华夏全球精选', 'reason': '全球市场走强', 'heat': '75'},
-                {'code': '000006', 'name': '华夏优势增长', 'reason': '优势行业表现', 'heat': '70'}
+                {'code': '000008', 'name': '华夏全球精选', 'reason': '全球市场走强', 'heat': '75'}
             ]
         
         # 填充热搜榜表格
@@ -263,15 +262,14 @@ class MarketTab(QWidget):
                 # 基金代码
                 code_item = QTableWidgetItem(fund.get('code', ''))
                 table.setItem(row, 2, code_item)
-    
-    def update_fund_rank(self, fund_rank):
-        """更新基金排行榜"""
-        for rank_type, funds in fund_rank.items():
-            if rank_type in self.rank_tables:
-                table = self.rank_tables[rank_type]
-                table.setRowCount(len(funds))
+        
+        # 为其他榜单也填充相同的数据
+        for table_name in ['涨幅榜', '自选榜', '持有榜']:
+            if table_name in self.rank_tables:
+                table = self.rank_tables[table_name]
+                table.setRowCount(len(hot_funds))
                 
-                for row, fund in enumerate(funds):
+                for row, fund in enumerate(hot_funds):
                     # 序号
                     index_item = QTableWidgetItem(str(row + 1))
                     table.setItem(row, 0, index_item)
@@ -283,6 +281,30 @@ class MarketTab(QWidget):
                     # 基金代码
                     code_item = QTableWidgetItem(fund.get('code', ''))
                     table.setItem(row, 2, code_item)
+    
+    def update_fund_rank(self, fund_rank):
+        """更新基金排行榜"""
+        for rank_type, funds in fund_rank.items():
+            if rank_type in self.rank_tables:
+                table = self.rank_tables[rank_type]
+                
+                # 只有当有数据时才更新，否则保留原有数据
+                if funds:
+                    table.setRowCount(len(funds))
+                    
+                    for row, fund in enumerate(funds):
+                        # 序号
+                        index_item = QTableWidgetItem(str(row + 1))
+                        table.setItem(row, 0, index_item)
+                        
+                        # 基金名称
+                        name_item = QTableWidgetItem(fund.get('name', ''))
+                        table.setItem(row, 1, name_item)
+                        
+                        # 基金代码
+                        code_item = QTableWidgetItem(fund.get('code', ''))
+                        table.setItem(row, 2, code_item)
+                # 如果没有数据，不做任何操作，保留之前的模拟数据
     
     def show_rank_context_menu(self, position, table):
         """显示排行榜上下文菜单"""

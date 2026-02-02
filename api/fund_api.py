@@ -578,8 +578,7 @@ class FundAPI:
                 {'code': '001475', 'name': '易方达国防军工混合', 'net_value': '3.2456', 'day_growth': '+1.23%'},
                 {'code': '000689', 'name': '前海开源新经济混合', 'net_value': '2.8765', 'day_growth': '+0.98%'},
                 {'code': '001593', 'name': '天弘中证计算机ETF联接', 'net_value': '1.6789', 'day_growth': '+0.21%'},
-                {'code': '000008', 'name': '华夏全球精选', 'net_value': '2.3456', 'day_growth': '+0.43%'},
-                {'code': '000006', 'name': '华夏优势增长', 'net_value': '1.9876', 'day_growth': '+0.65%'}
+                {'code': '000008', 'name': '华夏全球精选', 'net_value': '2.3456', 'day_growth': '+0.43%'}
             ]
     
     def get_market_sentiment(self):
@@ -601,7 +600,8 @@ class FundAPI:
                     {'code': '110022', 'name': '易方达消费行业股票', 'reason': '消费升级概念'},
                     {'code': '001475', 'name': '易方达国防军工混合', 'reason': '军工板块异动'},
                     {'code': '000689', 'name': '前海开源新经济混合', 'reason': '新能源题材'},
-                    {'code': '001593', 'name': '天弘中证计算机ETF联接', 'reason': '计算机板块走强'}
+                    {'code': '001593', 'name': '天弘中证计算机ETF联接', 'reason': '计算机板块走强'},
+                    {'code': '000008', 'name': '华夏全球精选', 'reason': '全球市场走强'}
                 ]
             }
         except Exception as e:

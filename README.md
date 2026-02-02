@@ -2,6 +2,10 @@
 
 一款功能强大的基金收益预测和管理工具，支持基金自选、实时刷新、行情分析等功能。
 
+## 🎨 项目预览
+
+![preview](https://tinygeeker.github.io/assets/preview/0000000009.png)
+
 ## ✨ 功能特性
 
 ### 📈 核心功能
